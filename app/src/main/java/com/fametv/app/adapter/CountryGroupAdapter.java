@@ -49,11 +49,11 @@ public class CountryGroupAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
             this.channel = channel;
         }
 
-        static FlatItem header(String code, String name, int count, boolean expanded) {
+        public static FlatItem header(String code, String name, int count, boolean expanded) {
             return new FlatItem(TYPE_HEADER, code, name, count, expanded, null);
         }
 
-        static FlatItem channel(Channel c) {
+        public static FlatItem channel(Channel c) {
             return new FlatItem(TYPE_CHANNEL, c.getCountry(), c.getCountryName(), 0, false, c);
         }
 
