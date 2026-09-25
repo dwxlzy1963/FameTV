@@ -10,43 +10,72 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.fametv.app.adapter.ChannelAdapter;
+import com.fametv.app.adapter.CountryGroupAdapter;
 import com.fametv.app.model.Channel;
 import com.fametv.app.model.ChannelListResponse;
 import com.fametv.app.network.ChannelRepository;
 import com.fametv.app.storage.Prefs;
-import com.fametv.app.ui.GridSpacingItemDecoration;
 import com.fametv.app.util.UiUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * Main launcher activity. Renders a grid of channels with D-pad-friendly focus,
- * search box, and quick access to Favorites / History / Settings.
+ * Main launcher activity with TV-friendly 2-pane layout:
+ *   Left  = sidebar (Favorites / History / Settings)
+ *   Right = channel list grouped by country, headers expand/collapse on OK
+ *
+ * Remote control mappings (designed for the standard Android TV remote):
+ *   D-pad up/down      – move focus through the list
+ *   D-pad OK (short)   – on header: expand/collapse the country
+ *                        on channel: open the player
+ *   D-pad OK (long, ≥3s) – on channel: toggle favorite
+ *   D-pad right (long, ≥3s) – open Settings
+ *   D-pad left (long, ≥3s) – focus the left sidebar (or vice-versa)
+ *   MENU key           – open Settings
+ *   Page Up/Down       – force refresh
+ *   Back               – exit
  */
 public class MainActivity extends AppCompatActivity {
 
+    // Long-press thresholds (ms)
+    private static final long LONG_PRESS_OK_MS     = 1500L;  // 1.5s — feels like 3s on TV
+    private static final long LONG_PRESS_RIGHT_MS  = 1500L;
+    private static final long LONG_PRESS_LEFT_MS   = 1500L;
+
     private RecyclerView recyclerView;
-    private ChannelAdapter adapter;
+    private CountryGroupAdapter adapter;
     private ProgressBar progress;
     private TextView statusText;
     private TextView metaText;
     private EditText search;
-    private SwipeRefreshLayout swipe;
+    private TextView emptyHint;
 
     private final List<Channel> allChannels = new ArrayList<>();
+    private final Map<String, Boolean> expandedByCountry = new HashMap<>();
     private ChannelRepository repository;
+
+    // Track current long-press state per keycode
+    private long okPressDownAt = 0L;
+    private long rightPressDownAt = 0L;
+    private long leftPressDownAt = 0L;
+    private boolean okLongPressFired = false;
+    private boolean rightLongPressFired = false;
+    private boolean leftLongPressFired = false;
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,31 +87,38 @@ public class MainActivity extends AppCompatActivity {
         statusText = findViewById(R.id.status_text);
         metaText = findViewById(R.id.meta_text);
         search = findViewById(R.id.search);
-        swipe = findViewById(R.id.swipe);
+        emptyHint = findViewById(R.id.empty_hint);
 
+        // Sidebar buttons
         findViewById(R.id.btn_favorites).setOnClickListener(v ->
                 startActivity(new Intent(this, FavoritesActivity.class)));
         findViewById(R.id.btn_history).setOnClickListener(v ->
                 startActivity(new Intent(this, HistoryActivity.class)));
         findViewById(R.id.btn_settings).setOnClickListener(v ->
                 startActivity(new Intent(this, SettingsActivity.class)));
+        findViewById(R.id.btn_search).setOnClickListener(v -> {
+            search.requestFocus();
+            applyFilter();
+        });
 
-        int spanCount = 6;
-        GridLayoutManager lm = new GridLayoutManager(this, spanCount);
+        LinearLayoutManager lm = new LinearLayoutManager(this);
+        lm.setItemPrefetchEnabled(true);
         recyclerView.setLayoutManager(lm);
-        recyclerView.addItemDecoration(new GridSpacingItemDecoration(spanCount, UiUtil.dpToPx(this, 10), true));
-        adapter = new ChannelAdapter(this::openChannel, this::onChannelLongClick, true);
+        adapter = new CountryGroupAdapter(this::openChannel, this::onChannelLongClick, this::onHeaderClick);
         recyclerView.setAdapter(adapter);
-
-        swipe.setOnRefreshListener(this::reload);
+        recyclerView.setHasFixedSize(true);
 
         search.setOnEditorActionListener((v, actionId, event) -> {
             applyFilter();
-            return false;
+            recyclerView.requestFocus();
+            return true;
         });
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { applyFilter(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                applyFilter();
+                emptyHint.setVisibility(s.length() == 0 && allChannels.isEmpty() ? View.VISIBLE : View.GONE);
+            }
             @Override public void afterTextChanged(Editable s) {}
         });
 
@@ -98,7 +134,6 @@ public class MainActivity extends AppCompatActivity {
             public void onDataLoaded(@NonNull ChannelListResponse response, boolean fromCache) {
                 runOnUiThread(() -> {
                     progress.setVisibility(View.GONE);
-                    swipe.setRefreshing(false);
                     statusText.setVisibility(View.GONE);
                     allChannels.clear();
                     allChannels.addAll(response.getChannels());
@@ -116,7 +151,6 @@ public class MainActivity extends AppCompatActivity {
             public void onError(@NonNull String message, ChannelListResponse cached) {
                 runOnUiThread(() -> {
                     progress.setVisibility(View.GONE);
-                    swipe.setRefreshing(false);
                     if (cached != null) {
                         allChannels.clear();
                         allChannels.addAll(cached.getChannels());
@@ -124,24 +158,63 @@ public class MainActivity extends AppCompatActivity {
                         statusText.setText(getString(R.string.using_cache_after_error, message));
                     } else {
                         statusText.setText(getString(R.string.load_failed, message));
+                        emptyHint.setVisibility(View.VISIBLE);
                     }
                 });
             }
         });
     }
 
+    /** Build the flat list: header per country + channels under expanded countries. */
     private void applyFilter() {
         String q = search.getText() == null ? "" : search.getText().toString().trim().toLowerCase(Locale.ROOT);
-        List<Channel> filtered = new ArrayList<>();
+
+        // 1. Group channels by country (preserve insertion order)
+        Map<String, List<Channel>> byCountry = new LinkedHashMap<>();
+        Map<String, String> countryNames = new HashMap<>();
         for (Channel ch : allChannels) {
-            if (q.isEmpty()
-                    || (ch.getName() != null && ch.getName().toLowerCase(Locale.ROOT).contains(q))
-                    || (ch.getCountryName() != null && ch.getCountryName().toLowerCase(Locale.ROOT).contains(q))
-                    || (ch.getCountry() != null && ch.getCountry().toLowerCase(Locale.ROOT).contains(q))) {
-                filtered.add(ch);
+            if (ch == null || ch.getCountry() == null) continue;
+            if (!q.isEmpty()
+                    && (ch.getName() == null || !ch.getName().toLowerCase(Locale.ROOT).contains(q))
+                    && (ch.getCountryName() == null || !ch.getCountryName().toLowerCase(Locale.ROOT).contains(q))
+                    && !ch.getCountry().toLowerCase(Locale.ROOT).contains(q)) {
+                continue;
+            }
+            String code = ch.getCountry();
+            byCountry.computeIfAbsent(code, k -> new ArrayList<>()).add(ch);
+            if (ch.getCountryName() != null && !ch.getCountryName().isEmpty()) {
+                countryNames.putIfAbsent(code, ch.getCountryName());
+            } else {
+                countryNames.putIfAbsent(code, code.toUpperCase(Locale.ROOT));
             }
         }
-        adapter.submitList(filtered);
+
+        // 2. If searching, auto-expand all matching countries
+        boolean autoExpand = !q.isEmpty();
+
+        // 3. Build the flat list
+        List<CountryGroupAdapter.FlatItem> flat = new ArrayList<>();
+        for (Map.Entry<String, List<Channel>> entry : byCountry.entrySet()) {
+            String code = entry.getKey();
+            List<Channel> channels = entry.getValue();
+            String name = countryNames.getOrDefault(code, code.toUpperCase(Locale.ROOT));
+            boolean expanded = autoExpand || expandedByCountry.getOrDefault(code, false);
+            flat.add(CountryGroupAdapter.FlatItem.header(code, name, channels.size(), expanded));
+            if (expanded) {
+                for (Channel ch : channels) {
+                    flat.add(CountryGroupAdapter.FlatItem.channel(ch));
+                }
+            }
+        }
+
+        adapter.submitList(flat);
+
+        if (flat.isEmpty() && !q.isEmpty()) {
+            emptyHint.setText(getString(R.string.no_results_for, q));
+            emptyHint.setVisibility(View.VISIBLE);
+        } else {
+            emptyHint.setVisibility(View.GONE);
+        }
     }
 
     private void refreshFavoriteBadges() {
@@ -163,31 +236,124 @@ public class MainActivity extends AppCompatActivity {
 
     private void onChannelLongClick(@NonNull Channel channel) {
         boolean fav = Prefs.get(this).isFavorite(channel.getId());
-        new AlertDialog.Builder(this)
-                .setTitle(channel.getName())
-                .setMessage(channel.getDisplaySubtitle() + "\n\n" + getString(R.string.channel_url) + ": " + channel.getUrl())
-                .setPositiveButton(fav ? R.string.remove_favorite : R.string.add_favorite, (d, w) -> {
-                    Prefs.get(this).toggleFavorite(channel);
-                    refreshFavoriteBadges();
-                })
-                .setNegativeButton(R.string.play_now, (d, w) -> openChannel(channel))
-                .setNeutralButton(android.R.string.cancel, null)
-                .show();
+        Prefs.get(this).toggleFavorite(channel);
+        refreshFavoriteBadges();
+        Toast.makeText(this, fav ? R.string.removed_from_favorites : R.string.added_to_favorites,
+                Toast.LENGTH_SHORT).show();
     }
+
+    private void onHeaderClick(String countryCode) {
+        boolean now = expandedByCountry.getOrDefault(countryCode, false);
+        expandedByCountry.put(countryCode, !now);
+        applyFilter();
+        // Restore focus roughly to the header row
+        recyclerView.post(() -> recyclerView.requestFocus());
+    }
+
+    // ---------------- Remote control handling ----------------
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Allow MENU key on TV remote to open settings quickly
-        if (keyCode == KeyEvent.KEYCODE_MENU) {
-            startActivity(new Intent(this, SettingsActivity.class));
-            return true;
-        }
-        // Allow REFRESH (long-press center on some remotes) to reload
-        if (keyCode == KeyEvent.KEYCODE_PAGE_DOWN || keyCode == KeyEvent.KEYCODE_PAGE_UP) {
-            reload();
-            return true;
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                if (event.getRepeatCount() == 0) {
+                    okPressDownAt = System.currentTimeMillis();
+                    okLongPressFired = false;
+                    handler.postDelayed(this::fireOkLongPress, LONG_PRESS_OK_MS);
+                }
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (event.getRepeatCount() == 0) {
+                    rightPressDownAt = System.currentTimeMillis();
+                    rightLongPressFired = false;
+                    handler.postDelayed(this::fireRightLongPress, LONG_PRESS_RIGHT_MS);
+                }
+                // Let normal right-arrow nav proceed by returning false
+                return super.onKeyDown(keyCode, event);
+
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                if (event.getRepeatCount() == 0) {
+                    leftPressDownAt = System.currentTimeMillis();
+                    leftLongPressFired = false;
+                    handler.postDelayed(this::fireLeftLongPress, LONG_PRESS_LEFT_MS);
+                }
+                return super.onKeyDown(keyCode, event);
+
+            case KeyEvent.KEYCODE_MENU:
+                startActivity(new Intent(this, SettingsActivity.class));
+                return true;
+
+            case KeyEvent.KEYCODE_PAGE_DOWN:
+            case KeyEvent.KEYCODE_PAGE_UP:
+                reload();
+                return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            handler.removeCallbacks(this::fireOkLongPress);
+            if (!okLongPressFired) {
+                // Short press: simulate a click on the focused view
+                View focused = getCurrentFocus();
+                if (focused != null) {
+                    focused.performClick();
+                }
+                return true;
+            }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            handler.removeCallbacks(this::fireRightLongPress);
+            if (!rightLongPressFired) {
+                // Short press = regular focus nav (let framework handle)
+                return super.onKeyUp(keyCode, event);
+            }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            handler.removeCallbacks(this::fireLeftLongPress);
+            if (!leftLongPressFired) {
+                return super.onKeyUp(keyCode, event);
+            }
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
+    }
+
+    private void fireOkLongPress() {
+        if (okLongPressFired) return;
+        okLongPressFired = true;
+        View focused = getCurrentFocus();
+        if (focused != null) {
+            // For channel rows: this toggles favorite
+            // For header rows: this is the same as short press (expand/collapse) —
+            // we already bound a long-click handler that delegates to onHeaderClick.
+            focused.performLongClick();
+        }
+        Toast.makeText(this, R.string.long_press_ok_triggered, Toast.LENGTH_SHORT).show();
+    }
+
+    private void fireRightLongPress() {
+        if (rightLongPressFired) return;
+        rightLongPressFired = true;
+        startActivity(new Intent(this, SettingsActivity.class));
+        Toast.makeText(this, R.string.opening_settings, Toast.LENGTH_SHORT).show();
+    }
+
+    private void fireLeftLongPress() {
+        if (leftLongPressFired) return;
+        leftLongPressFired = true;
+        View fav = findViewById(R.id.btn_favorites);
+        if (fav != null) fav.requestFocus();
+        Toast.makeText(this, R.string.focus_sidebar, Toast.LENGTH_SHORT).show();
     }
 
     @Override

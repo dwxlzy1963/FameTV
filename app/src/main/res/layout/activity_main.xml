@@ -1,40 +1,106 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipe"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="horizontal"
     android:background="@color/bg_dark">
 
+    <!-- ===== Left sidebar: TV-style 10-foot UI vertical menu ===== -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="220dp"
         android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/bg_panel"
+        android:paddingTop="24dp"
+        android:paddingBottom="16dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <!-- Brand logo + name -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@color/accent"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-condensed"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/sidebar_tagline"
+            android:textColor="@color/text_hint"
+            android:textSize="11sp"
+            android:layout_marginBottom="28dp" />
+
+        <!-- Search button -->
+        <Button
+            android:id="@+id/btn_search"
+            style="@style/Widget.FameTV.Button.Sidebar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/search" />
+
+        <Button
+            android:id="@+id/btn_favorites"
+            style="@style/Widget.FameTV.Button.Sidebar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/favorites" />
+
+        <Button
+            android:id="@+id/btn_history"
+            style="@style/Widget.FameTV.Button.Sidebar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/history" />
+
+        <Button
+            android:id="@+id/btn_settings"
+            style="@style/Widget.FameTV.Button.Sidebar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings" />
+
+        <!-- Spacer + hint footer -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/remote_hint"
+            android:textColor="@color/text_hint"
+            android:textSize="10sp"
+            android:lineSpacingExtra="2dp" />
+    </LinearLayout>
+
+    <!-- ===== Right pane: search bar + grouped channel list ===== -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- Top toolbar: title + quick actions -->
+        <!-- Top toolbar: search + meta info -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="16dp"
-            android:background="@color/bg_panel">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/app_name"
-                android:textColor="@color/accent"
-                android:textSize="28sp"
-                android:textStyle="bold"
-                android:fontFamily="sans-serif-condensed"
-                android:layout_marginEnd="24dp" />
+            android:orientation="vertical"
+            android:background="@color/bg_panel"
+            android:padding="14dp">
 
             <EditText
                 android:id="@+id/search"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="@string/search_hint"
                 android:inputType="text"
@@ -44,50 +110,25 @@
                 android:backgroundTint="@color/accent"
                 android:padding="10dp" />
 
-            <Button
-                android:id="@+id/btn_favorites"
-                style="@style/Widget.FameTV.Button"
-                android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/meta_text"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="@string/favorites" />
+                android:textColor="@color/text_secondary"
+                android:paddingTop="6dp"
+                android:textSize="12sp"
+                tools:text="6,723 channels · 169 countries" />
 
-            <Button
-                android:id="@+id/btn_history"
-                style="@style/Widget.FameTV.Button"
-                android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="@string/history" />
-
-            <Button
-                android:id="@+id/btn_settings"
-                style="@style/Widget.FameTV.Button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="@string/settings" />
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:paddingTop="2dp"
+                android:text="@string/loading_channels"
+                android:visibility="gone" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/meta_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/text_secondary"
-            android:paddingHorizontal="20dp"
-            android:paddingBottom="8dp"
-            android:textSize="13sp"
-            tools:text="6,723 channels · 169 countries" />
-
-        <TextView
-            android:id="@+id/status_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/text_secondary"
-            android:paddingHorizontal="20dp"
-            android:paddingBottom="8dp"
-            android:text="@string/loading_channels"
-            android:visibility="gone" />
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -99,17 +140,30 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingHorizontal="14dp"
-                android:paddingBottom="24dp"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="12dp"
                 android:scrollbars="vertical"
-                android:scrollbarFadeDuration="500" />
+                android:scrollbarFadeDuration="800"
+                android:focusable="true" />
 
             <ProgressBar
                 android:id="@+id/progress"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
                 android:layout_gravity="center"
                 android:visibility="gone" />
+
+            <!-- Empty hint (centered) -->
+            <TextView
+                android:id="@+id/empty_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textColor="@color/text_secondary"
+                android:textSize="16sp"
+                android:visibility="gone"
+                android:gravity="center"
+                tools:text="No channels found" />
         </FrameLayout>
     </LinearLayout>
-</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+</LinearLayout>

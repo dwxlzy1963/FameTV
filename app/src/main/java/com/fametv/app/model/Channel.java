@@ -9,6 +9,23 @@ import java.util.List;
  */
 public class Channel {
 
+    /** No-arg constructor for manual instantiation (e.g. when building a stub for favorite toggle). */
+    public Channel() {}
+
+    public Channel(String id, String name, String country, String countryName,
+                   java.util.List<String> languages, boolean geoBlocked,
+                   String url, String streamUrl, String youtubeUrl) {
+        this.id = id;
+        this.name = name;
+        this.country = country;
+        this.countryName = countryName;
+        this.languages = languages;
+        this.geoBlocked = geoBlocked;
+        this.url = url;
+        this.streamUrl = streamUrl;
+        this.youtubeUrl = youtubeUrl;
+    }
+
     @SerializedName("id")
     private String id;
 

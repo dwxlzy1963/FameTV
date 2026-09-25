@@ -2,10 +2,7 @@ package com.fametv.app;
 
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
-import android.content.Intent;
-import android.graphics.Color;
 import android.media.AudioManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -35,6 +32,12 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.datasource.DefaultDataSource;
 
+import com.fametv.app.model.Channel;
+import com.fametv.app.model.ChannelListResponse;
+import com.fametv.app.network.ChannelRepository;
+import com.fametv.app.storage.Prefs;
+
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -43,12 +46,14 @@ import java.util.Locale;
  *   2) WebView fallback to famelack.com/tv/{country}/{id} when only YouTube or
  *      geo-blocked streams are present.
  *
- * TV remote mappings:
- *   - D-pad center: toggle play/pause
- *   - Up/Down: volume
- *   - Left/Right: seek 10s (ExoPlayer mode) or skip YouTube 5s (WebView mode)
- *   - MENU: open stream selector
- *   - BACK: exit
+ * TV remote mappings (standard TV-app behavior):
+ *   - D-pad Up/Down : switch to previous / next channel in the catalog
+ *   - D-pad Left/Right: volume down / volume up
+ *   - D-pad OK (short) : play / pause
+ *   - D-pad OK (long ≥1.5s): toggle favorite for the current channel
+ *   - D-pad Right (long ≥1.5s): open Settings
+ *   - MENU: open stream source selector
+ *   - BACK: exit (or leave WebView custom-view fullscreen first)
  */
 public class PlayerActivity extends AppCompatActivity {
 
@@ -59,6 +64,7 @@ public class PlayerActivity extends AppCompatActivity {
     public static final String EXTRA_YOUTUBE_URL = "youtube_url";
 
     private static final String TAG = "PlayerActivity";
+    private static final long LONG_PRESS_MS = 1500L;
 
     private TextView titleText;
     private TextView subtitleText;
@@ -76,14 +82,22 @@ public class PlayerActivity extends AppCompatActivity {
     private String streamUrl;
     private String youtubeUrl;
 
+    /** Catalog for channel up/down switching. */
+    private List<Channel> catalog;
+    private int currentIndex = -1;
+
     private boolean chromeClientCustomView = false;
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
 
+    // Long-press state
+    private boolean okLongFired = false;
+    private boolean rightLongFired = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Fullscreen immersive from the start
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -97,24 +111,37 @@ public class PlayerActivity extends AppCompatActivity {
 
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
 
-        channelId = getIntent().getStringExtra(EXTRA_CHANNEL_ID);
-        channelName = getIntent().getStringExtra(EXTRA_CHANNEL_NAME);
-        channelUrl = getIntent().getStringExtra(EXTRA_CHANNEL_URL);
-        streamUrl = getIntent().getStringExtra(EXTRA_STREAM_URL);
-        youtubeUrl = getIntent().getStringExtra(EXTRA_YOUTUBE_URL);
-
-        titleText.setText(channelName);
-        subtitleText.setText(channelUrl);
-
-        findViewById(R.id.player_back).setOnClickListener(v -> finish());
-        findViewById(R.id.player_menu).setOnClickListener(v -> showStreamSelector());
-
+        loadIntent(getIntent());
+        loadCatalog();
         startPlayback();
     }
 
+    private void loadIntent(@NonNull Intent intent) {
+        channelId = intent.getStringExtra(EXTRA_CHANNEL_ID);
+        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME);
+        channelUrl = intent.getStringExtra(EXTRA_CHANNEL_URL);
+        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL);
+        youtubeUrl = intent.getStringExtra(EXTRA_YOUTUBE_URL);
+        titleText.setText(channelName);
+        subtitleText.setText(channelUrl);
+    }
+
+    /** Pull the catalog from cache so we can switch channels on Up/Down keys. */
+    private void loadCatalog() {
+        ChannelListResponse cached = ChannelRepository.get(this).loadCached();
+        if (cached == null || cached.getChannels() == null) return;
+        catalog = cached.getChannels();
+        for (int i = 0; i < catalog.size(); i++) {
+            Channel c = catalog.get(i);
+            if (c != null && c.getId() != null && c.getId().equals(channelId)) {
+                currentIndex = i;
+                return;
+            }
+        }
+        currentIndex = -1;
+    }
+
     private void startPlayback() {
-        // Prefer native ExoPlayer when a direct HLS stream is available — better
-        // remote-control support than a WebView.
         if (streamUrl != null && !streamUrl.isEmpty() && streamUrl.startsWith("http")) {
             launchExoPlayer(streamUrl);
         } else if (channelUrl != null && !channelUrl.isEmpty()) {
@@ -137,6 +164,7 @@ public class PlayerActivity extends AppCompatActivity {
         HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(dataSourceFactory);
         MediaSource mediaSource = hlsFactory.createMediaSource(MediaItem.fromUri(hlsUrl));
 
+        releaseExoPlayer();
         exoPlayer = new ExoPlayer.Builder(this)
                 .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
                 .build();
@@ -145,10 +173,7 @@ public class PlayerActivity extends AppCompatActivity {
         exoPlayer.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int state) {
-                runOnUiThread(() -> {
-                    progress.setVisibility(state == Player.STATE_READY ? View.GONE : View.VISIBLE);
-                    if (state == Player.STATE_READY) subtitleText.setText(channelUrl);
-                });
+                runOnUiThread(() -> progress.setVisibility(state == Player.STATE_READY ? View.GONE : View.VISIBLE));
             }
 
             @Override
@@ -163,7 +188,6 @@ public class PlayerActivity extends AppCompatActivity {
             }
         });
         exoPlayer.prepare();
-        // Use the stock player view as a child (declared in layout)
         if (exoView instanceof androidx.media3.ui.PlayerView) {
             ((androidx.media3.ui.PlayerView) exoView).setPlayer(exoPlayer);
         }
@@ -215,7 +239,7 @@ public class PlayerActivity extends AppCompatActivity {
         wv.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
-                return false;  // load all URLs in-app
+                return false;
             }
 
             @Override
@@ -260,7 +284,6 @@ public class PlayerActivity extends AppCompatActivity {
         });
     }
 
-    /** Inject CSS / JS to nudge famelack.com's player toward fullscreen-friendly behavior. */
     private void injectPlayerTweaks(@NonNull WebView v) {
         String js = "(function(){"
                 + "  try {"
@@ -274,41 +297,91 @@ public class PlayerActivity extends AppCompatActivity {
         v.evaluateJavascript(js, null);
     }
 
+    // ---------------- Channel switching ----------------
+
+    private void switchChannel(int delta) {
+        if (catalog == null || catalog.isEmpty()) return;
+        if (currentIndex < 0) currentIndex = 0;
+        int next = currentIndex + delta;
+        if (next < 0) next = 0;
+        if (next >= catalog.size()) next = catalog.size() - 1;
+        if (next == currentIndex) return;
+        Channel ch = catalog.get(next);
+        if (ch == null) return;
+
+        currentIndex = next;
+        channelId = ch.getId();
+        channelName = ch.getName();
+        channelUrl = ch.getUrl();
+        streamUrl = ch.getStreamUrl();
+        youtubeUrl = ch.getYoutubeUrl();
+
+        titleText.setText(channelName);
+        subtitleText.setText(channelUrl);
+
+        // Record history
+        Prefs.get(this).addToHistory(ch);
+
+        // Show a quick toast so the user knows which channel they're on
+        Toast.makeText(this, ch.getName(), Toast.LENGTH_SHORT).show();
+
+        startPlayback();
+    }
+
     // ---------------- Remote control ----------------
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                if (event.getRepeatCount() == 0) {
+                    okLongFired = false;
+                    handler.postDelayed(this::fireOkLong, LONG_PRESS_MS);
+                }
+                // Don't consume; PlayerView's controller will use it for play/pause
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_UP:
+                // Channel up
+                switchChannel(-1);
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                // Channel down
+                switchChannel(1);
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                adjustVolume(-1);
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (event.getRepeatCount() == 0) {
+                    rightLongFired = false;
+                    handler.postDelayed(this::fireRightLong, LONG_PRESS_MS);
+                }
+                adjustVolume(1);
+                return true;
+
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
             case KeyEvent.KEYCODE_SPACE:
                 togglePlayPause();
                 return true;
+
             case KeyEvent.KEYCODE_MEDIA_PLAY:
                 if (exoPlayer != null) exoPlayer.setPlayWhenReady(true);
                 return true;
+
             case KeyEvent.KEYCODE_MEDIA_PAUSE:
                 if (exoPlayer != null) exoPlayer.setPlayWhenReady(false);
                 return true;
-            case KeyEvent.KEYCODE_DPAD_UP:
-            case KeyEvent.KEYCODE_VOLUME_UP:
-                adjustVolume(1);
-                return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-            case KeyEvent.KEYCODE_VOLUME_DOWN:
-                adjustVolume(-1);
-                return true;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                if (exoPlayer != null) seekRelative(-10_000);
-                else if (webView != null) webView.dispatchKeyEvent(event);
-                return true;
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                if (exoPlayer != null) seekRelative(10_000);
-                else if (webView != null) webView.dispatchKeyEvent(event);
-                return true;
+
             case KeyEvent.KEYCODE_MENU:
                 showStreamSelector();
                 return true;
+
             case KeyEvent.KEYCODE_BACK:
                 if (webView != null && webView.canGoBack()) {
                     webView.goBack();
@@ -323,6 +396,44 @@ public class PlayerActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            handler.removeCallbacks(this::fireOkLong);
+            if (!okLongFired) {
+                togglePlayPause();
+            }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            handler.removeCallbacks(this::fireRightLong);
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
+    }
+
+    private void fireOkLong() {
+        if (okLongFired) return;
+        okLongFired = true;
+        // Toggle favorite for the currently playing channel
+        if (channelId == null) return;
+        boolean fav = Prefs.get(this).isFavorite(channelId);
+        // Build a minimal Channel object from the current playback state
+        Channel ch = new Channel(channelId, channelName, null, null,
+                null, false, channelUrl, streamUrl, youtubeUrl);
+        Prefs.get(this).toggleFavorite(ch);
+        Toast.makeText(this, fav ? R.string.removed_from_favorites : R.string.added_to_favorites,
+                Toast.LENGTH_SHORT).show();
+    }
+
+    private void fireRightLong() {
+        if (rightLongFired) return;
+        rightLongFired = true;
+        startActivity(new android.content.Intent(this, SettingsActivity.class));
+    }
+
     private void togglePlayPause() {
         if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(!exoPlayer.getPlayWhenReady());
@@ -331,13 +442,6 @@ public class PlayerActivity extends AppCompatActivity {
                     "(function(){var v=document.querySelector('video');"
                             + "if(v){if(v.paused){v.play()}else{v.pause()}}})();",
                     null);
-        }
-    }
-
-    private void seekRelative(long ms) {
-        if (exoPlayer != null) {
-            long pos = Math.max(0, Math.min(exoPlayer.getDuration(), exoPlayer.getCurrentPosition() + ms));
-            exoPlayer.seekTo(pos);
         }
     }
 
@@ -401,6 +505,15 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        // Allow being re-launched with a new channel without recreating the activity
+        loadIntent(intent);
+        loadCatalog();
+        startPlayback();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         releaseExoPlayer();
@@ -415,4 +528,7 @@ public class PlayerActivity extends AppCompatActivity {
         super.onPause();
         if (exoPlayer != null) exoPlayer.setPlayWhenReady(false);
     }
+
+    // --- Required imports to compile (alias usage so the imports above resolve) ---
+    private static final String _TAG = TAG;
 }

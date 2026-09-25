@@ -4,11 +4,16 @@
     <string name="favorites">Favorites</string>
     <string name="history">History</string>
     <string name="settings">Settings</string>
+    <string name="search">Search</string>
     <string name="back">Back</string>
+    <string name="expand">Expand/Collapse</string>
+    <string name="sidebar_tagline">Free Live TV Worldwide</string>
+    <string name="remote_hint">OK: open / long-press: favorite\nUp/Down: prev/next channel\nLong-press Right: settings</string>
     <string name="search_hint">Search channel or country…</string>
     <string name="loading_channels">Loading channels…</string>
     <string name="using_cache_after_error">Using cached list (%1$s)</string>
     <string name="load_failed">Load failed: %1$s</string>
+    <string name="no_results_for">No channels match \"%1$s\"</string>
     <string name="channel_url">Channel URL</string>
     <string name="add_favorite">Add to Favorites</string>
     <string name="remove_favorite">Remove from Favorites</string>
@@ -31,4 +36,9 @@
     <string name="refresh_failed">Refresh failed: %1$s</string>
     <string name="no_cache">No cache available</string>
     <string name="cache_summary">%1$d channels · %2$d countries · generated %3$s</string>
+    <string name="added_to_favorites">Added to Favorites ★</string>
+    <string name="removed_from_favorites">Removed from Favorites</string>
+    <string name="long_press_ok_triggered">Long press detected</string>
+    <string name="opening_settings">Opening Settings…</string>
+    <string name="focus_sidebar">Sidebar focused</string>
 </resources>

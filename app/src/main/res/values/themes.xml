@@ -22,7 +22,7 @@
         <item name="android:windowContentOverlay">@null</item>
     </style>
 
-    <!-- TV-friendly button style -->
+    <!-- TV friendly button style -->
     <style name="Widget.FameTV.Button" parent="Widget.MaterialComponents.Button">
         <item name="android:textColor">@color/text_primary</item>
         <item name="backgroundTint">@color/card_bg</item>
@@ -31,6 +31,24 @@
         <item name="android:minHeight">44dp</item>
         <item name="android:focusable">true</item>
         <item name="android:focusableInTouchMode">true</item>
+    </style>
+
+    <!-- Sidebar button: taller, fully left-aligned, TV focus-friendly -->
+    <style name="Widget.FameTV.Button.Sidebar" parent="Widget.MaterialComponents.Button">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="backgroundTint">@color/card_bg</item>
+        <item name="strokeColor">@color/card_border</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:focusable">true</item>
+        <item name="android:focusableInTouchMode">true</item>
+        <item name="cornerRadius">6dp</item>
     </style>
 
     <!-- Animation style -->
