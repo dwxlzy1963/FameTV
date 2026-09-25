@@ -1,0 +1,75 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.fametv.app"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.fametv.app"
+        minSdk 21          // Android 5.0+ (most Android TVs)
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+        debug {
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+
+    packagingOptions {
+        resources.excludes += ["META-INF/*.md", "META-INF/LICENSE*"]
+    }
+}
+
+dependencies {
+    // AndroidX core
+    implementation "androidx.core:core:1.12.0"
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "androidx.activity:activity:1.8.2"
+    implementation "androidx.fragment:fragment:1.6.2"
+    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+    implementation "androidx.recyclerview:recyclerview:1.3.2"
+    implementation "androidx.preference:preference:1.2.1"
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
+
+    // Leanback for TV (uses BrowseSupportFragment / GuidedStepSupportFragment etc.)
+    implementation "androidx.leanback:leanback:1.0.0"
+
+    // Material components
+    implementation "com.google.android.material:material:1.11.0"
+
+    // OkHttp for fetching remote channels.json
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+
+    // Gson for JSON parsing
+    implementation "com.google.code.gson:gson:2.10.1"
+
+    // Glide for logo loading (optional, used in channel cards if available)
+    implementation "com.github.bumptech.glide:glide:4.16.0"
+    annotationProcessor "com.github.bumptech.glide:compiler:4.16.0"
+
+    // ExoPlayer for direct HLS playback (better than WebView when stream_url is available)
+    implementation "androidx.media3:media3-exoplayer:1.2.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.2.1"
+    implementation "androidx.media3:media3-ui:1.2.1"
+    implementation "androidx.media3:media3-common:1.2.1"
+    implementation "androidx.media3:media3-datasource:1.2.1"
+}

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "generated_at": "2026-09-24T00:00:00Z",
+  "channel_count": 6,
+  "country_count": 3,
+  "source_repo": "https://github.com/famelack/famelack-data",
+  "channels": [
+    {
+      "id": "cjno9NJJ87yGNT",
+      "name": "Cartoon Network Asia",
+      "country": "sg",
+      "country_name": "Singapore",
+      "languages": ["eng"],
+      "is_geo_blocked": false,
+      "url": "https://famelack.com/tv/sg/cjno9NJJ87yGNT",
+      "stream_url": null,
+      "youtube_url": "https://www.youtube-nocookie.com/embed/v5UO0XAocEI"
+    },
+    {
+      "id": "gS3BIgZPeKUpbg",
+      "name": "CNA",
+      "country": "sg",
+      "country_name": "Singapore",
+      "languages": ["eng"],
+      "is_geo_blocked": true,
+      "url": "https://famelack.com/tv/sg/gS3BIgZPeKUpbg",
+      "stream_url": "https://d2e1asnsl7br7b.cloudfront.net/7782e205e72f43aeb4a48ec97f66ebbe/index.m3u8",
+      "youtube_url": null
+    },
+    {
+      "id": "jPny5x45PjO9YA",
+      "name": "CCTV-13",
+      "country": "cn",
+      "country_name": "China",
+      "languages": ["chi"],
+      "is_geo_blocked": false,
+      "url": "https://famelack.com/tv/cn/jPny5x45PjO9YA",
+      "stream_url": null,
+      "youtube_url": null
+    }
+  ]
+}
