@@ -9,6 +9,9 @@
     <!-- Keep screen on while playing -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Vibration feedback for long-press favorite -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- TV-only feature: declare as not required so the APK can still install on phones for testing -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

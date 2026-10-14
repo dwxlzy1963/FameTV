@@ -8,15 +8,16 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 
 import com.fametv.app.network.ChannelRepository;
+import com.fametv.app.storage.Prefs;
 
-/** Minimal settings screen — lets the user edit the remote channels.json URL. */
-public class SettingsActivity extends AppCompatActivity {
+/** Settings screen: remote URL, cache info, language switcher, clear history. */
+public class SettingsActivity extends BaseActivity {
 
     private TextView urlView;
     private TextView cacheInfoView;
+    private TextView languageView;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -26,11 +27,13 @@ public class SettingsActivity extends AppCompatActivity {
 
         urlView = findViewById(R.id.settings_url);
         cacheInfoView = findViewById(R.id.settings_cache_info);
+        languageView = findViewById(R.id.settings_language);
 
         findViewById(R.id.btn_edit_url).setOnClickListener(v -> promptEditUrl());
         findViewById(R.id.btn_refresh_now).setOnClickListener(v -> forceRefresh());
+        findViewById(R.id.btn_change_language).setOnClickListener(v -> promptLanguage());
         findViewById(R.id.btn_clear_history).setOnClickListener(v -> {
-            com.fametv.app.storage.Prefs.get(this).clearHistory();
+            Prefs.get(this).clearHistory();
             showToast(getString(R.string.history_cleared));
         });
 
@@ -50,6 +53,12 @@ public class SettingsActivity extends AppCompatActivity {
                     cached.getCountryCount(),
                     cached.getGeneratedAt() != null ? cached.getGeneratedAt() : "—"));
         }
+
+        String lang = Prefs.get(this).getLanguage();
+        int labelRes = Prefs.LANG_FOLLOW_SYSTEM.equals(lang) ? R.string.language_follow_system
+                : Prefs.LANG_CHINESE.equals(lang) ? R.string.language_chinese
+                : R.string.language_english;
+        languageView.setText(getString(labelRes));
     }
 
     private void promptEditUrl() {
@@ -75,6 +84,42 @@ public class SettingsActivity extends AppCompatActivity {
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    private void promptLanguage() {
+        Prefs prefs = Prefs.get(this);
+        String current = prefs.getLanguage();
+        String[] codes = {Prefs.LANG_FOLLOW_SYSTEM, Prefs.LANG_ENGLISH, Prefs.LANG_CHINESE};
+        int[] labels = {R.string.language_follow_system,
+                R.string.language_english,
+                R.string.language_chinese};
+        int checked = 0;
+        for (int i = 0; i < codes.length; i++) {
+            if (codes[i].equals(current)) { checked = i; break; }
+        }
+        String[] items = new String[labels.length];
+        for (int i = 0; i < labels.length; i++) items[i] = getString(labels[i]);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.language)
+                .setSingleChoiceItems(items, checked, (d, which) -> {
+                    prefs.setLanguage(codes[which]);
+                    d.dismiss();
+                    showToast(getString(R.string.language_changed_restarting));
+                    // Recreate the whole task so the new locale takes effect everywhere
+                    recreateAll();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Restart the app so the new locale applies to all activities. */
+    private void recreateAll() {
+        // Schedule the recreation after the dialog dismisses
+        languageView.postDelayed(() -> {
+            android.os.Process.killProcess(android.os.Process.myPid());
+            // Fallback: just recreate this activity
+            recreate();
+        }, 500);
     }
 
     private void forceRefresh() {

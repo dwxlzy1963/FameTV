@@ -23,7 +23,6 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
@@ -56,7 +55,7 @@ import java.util.Locale;
  *   - MENU: open stream source selector
  *   - BACK: exit (or leave WebView custom-view fullscreen first)
  */
-public class PlayerActivity extends AppCompatActivity {
+public class PlayerActivity extends BaseActivity {
 
     public static final String EXTRA_CHANNEL_ID = "channel_id";
     public static final String EXTRA_CHANNEL_NAME = "channel_name";
@@ -65,7 +64,7 @@ public class PlayerActivity extends AppCompatActivity {
     public static final String EXTRA_YOUTUBE_URL = "youtube_url";
 
     private static final String TAG = "PlayerActivity";
-    private static final long LONG_PRESS_MS = 1500L;
+    private static final long LONG_PRESS_MS = 2000L;  // 2s — feels like a deliberate long-press
 
     private TextView titleText;
     private TextView subtitleText;
@@ -418,15 +417,36 @@ public class PlayerActivity extends AppCompatActivity {
     private void fireOkLong() {
         if (okLongFired) return;
         okLongFired = true;
-        // Toggle favorite for the currently playing channel
-        if (channelId == null) return;
-        boolean fav = Prefs.get(this).isFavorite(channelId);
-        // Build a minimal Channel object from the current playback state
+        // Toggle favorite for the currently playing channel.
+        // Build a minimal Channel object from the current playback state so
+        // that it round-trips through Gson into SharedPreferences correctly.
+        if (channelId == null) {
+            Toast.makeText(this, "No channel to favorite", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        boolean wasFav = Prefs.get(this).isFavorite(channelId);
         Channel ch = new Channel(channelId, channelName, null, null,
                 null, false, channelUrl, streamUrl, youtubeUrl);
-        Prefs.get(this).toggleFavorite(ch);
-        Toast.makeText(this, fav ? R.string.removed_from_favorites : R.string.added_to_favorites,
-                Toast.LENGTH_SHORT).show();
+        boolean nowFav = Prefs.get(this).toggleFavorite(ch);
+
+        // Haptic feedback (vibration) — works even in fullscreen mode
+        try {
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (v != null && v.hasVibrator()) {
+                long[] pattern = {0, 60, 80, 60};
+                v.vibrate(pattern, -1);
+            }
+        } catch (Exception ignored) {}
+
+        // Show a longer, more visible toast
+        String msg = nowFav ? getString(R.string.added_to_favorites) : getString(R.string.removed_from_favorites);
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+
+        // Update the title bar to indicate the current favorite state
+        if (titleText != null) {
+            String prefix = nowFav ? "\u2605 " : "";
+            titleText.setText(prefix + (channelName != null ? channelName : ""));
+        }
     }
 
     private void fireRightLong() {

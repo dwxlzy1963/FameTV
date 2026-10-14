@@ -4,7 +4,6 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -17,7 +16,7 @@ import com.fametv.app.util.UiUtil;
 import java.util.List;
 
 /** Reusable list screen used by both FavoritesActivity and HistoryActivity. */
-public class FavoritesActivity extends AppCompatActivity {
+public class FavoritesActivity extends BaseActivity {
 
     private RecyclerView recycler;
     private ChannelAdapter adapter;

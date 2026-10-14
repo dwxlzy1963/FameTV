@@ -2,6 +2,9 @@ package com.fametv.app.storage;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.os.Build;
 
 import androidx.annotation.NonNull;
 
@@ -12,19 +15,26 @@ import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
  * Tiny SharedPreferences wrapper for favorites + history + settings.
+ * Also persists the user's language preference and applies it on demand.
  */
 public class Prefs {
 
     private static final String NAME = "fametv_prefs";
     private static final String KEY_FAVORITES = "favorites_json";
     private static final String KEY_HISTORY = "history_json";
+    private static final String KEY_LANGUAGE = "user_language";
     private static final String MAX_HISTORY = "20";
+
+    /** Language code values stored in prefs. "" = follow system. */
+    public static final String LANG_FOLLOW_SYSTEM = "";
+    public static final String LANG_ENGLISH = "en";
+    public static final String LANG_CHINESE = "zh-CN";
 
     private static Prefs INSTANCE;
     private final SharedPreferences sp;
@@ -55,11 +65,12 @@ public class Prefs {
         return false;
     }
 
-    public void toggleFavorite(@NonNull Channel channel) {
+    /** Toggle favorite. Returns TRUE if the channel is now a favorite, FALSE otherwise. */
+    public boolean toggleFavorite(@NonNull Channel channel) {
         List<Channel> list = getFavorites();
         boolean removed = false;
         for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).getId().equals(channel.getId())) {
+            if (channel.getId() != null && channel.getId().equals(list.get(i).getId())) {
                 list.remove(i);
                 removed = true;
                 break;
@@ -67,6 +78,7 @@ public class Prefs {
         }
         if (!removed) list.add(0, channel);
         sp.edit().putString(KEY_FAVORITES, gson.toJson(list)).apply();
+        return !removed;
     }
 
     // ---------------- History ----------------
@@ -80,10 +92,8 @@ public class Prefs {
 
     public void addToHistory(@NonNull Channel channel) {
         List<Channel> list = getHistory();
-        // Remove existing occurrences to keep recency order
         Set<String> seen = new HashSet<>();
         List<Channel> deduped = new ArrayList<>();
-        // Put newest first
         deduped.add(channel);
         seen.add(channel.getId());
         for (Channel c : list) {
@@ -97,5 +107,38 @@ public class Prefs {
 
     public void clearHistory() {
         sp.edit().putString(KEY_HISTORY, "[]").apply();
+    }
+
+    // ---------------- Language ----------------
+
+    public String getLanguage() {
+        return sp.getString(KEY_LANGUAGE, LANG_FOLLOW_SYSTEM);
+    }
+
+    public void setLanguage(@NonNull String code) {
+        sp.edit().putString(KEY_LANGUAGE, code).apply();
+    }
+
+    /** Apply the saved language preference to the given context's resources. */
+    public void applyLanguage(@NonNull Context ctx) {
+        String code = getLanguage();
+        Locale locale;
+        if (LANG_CHINESE.equals(code)) {
+            locale = Locale.SIMPLIFIED_CHINESE;
+        } else if (LANG_ENGLISH.equals(code)) {
+            locale = Locale.ENGLISH;
+        } else {
+            // Follow system
+            locale = Resources.getSystem().getConfiguration().getLocales().get(0);
+        }
+        Locale.setDefault(locale);
+        Configuration cfg = new Configuration(ctx.getResources().getConfiguration());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            cfg.setLocale(locale);
+        } else {
+            //noinspection deprecation
+            cfg.locale = locale;
+        }
+        ctx.getResources().updateConfiguration(cfg, ctx.getResources().getDisplayMetrics());
     }
 }

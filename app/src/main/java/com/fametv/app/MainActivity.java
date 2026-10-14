@@ -13,7 +13,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -49,7 +48,7 @@ import java.util.Set;
  *   Page Up/Down       – force refresh
  *   Back               – exit
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseActivity {
 
     // Long-press thresholds (ms)
     private static final long LONG_PRESS_OK_MS     = 1500L;  // 1.5s — feels like 3s on TV
@@ -235,11 +234,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void onChannelLongClick(@NonNull Channel channel) {
-        boolean fav = Prefs.get(this).isFavorite(channel.getId());
-        Prefs.get(this).toggleFavorite(channel);
+        boolean wasFav = Prefs.get(this).isFavorite(channel.getId());
+        boolean nowFav = Prefs.get(this).toggleFavorite(channel);
         refreshFavoriteBadges();
-        Toast.makeText(this, fav ? R.string.removed_from_favorites : R.string.added_to_favorites,
-                Toast.LENGTH_SHORT).show();
+
+        // Vibration feedback
+        try {
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (v != null && v.hasVibrator()) {
+                long[] pattern = {0, 60, 80, 60};
+                v.vibrate(pattern, -1);
+            }
+        } catch (Exception ignored) {}
+
+        Toast.makeText(this, nowFav ? R.string.added_to_favorites : R.string.removed_from_favorites,
+                Toast.LENGTH_LONG).show();
     }
 
     private void onHeaderClick(String countryCode) {

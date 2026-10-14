@@ -72,6 +72,38 @@
         android:layout_marginVertical="24dp"
         android:background="@color/card_border" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/language"
+        android:textColor="@color/accent"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/settings_language"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        android:background="@color/card_bg"
+        android:padding="12dp" />
+
+    <Button
+        android:id="@+id/btn_change_language"
+        style="@style/Widget.FameTV.Button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/edit" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginVertical="24dp"
+        android:background="@color/card_border" />
+
     <Button
         android:id="@+id/btn_clear_history"
         style="@style/Widget.FameTV.Button"
