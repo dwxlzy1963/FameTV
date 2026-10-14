@@ -1,16 +1,54 @@
 # FameTV — Android TV 直播聚合 APK
 
+[![Build APK](https://github.com/dwxlzy1963/FameTV/actions/workflows/build.yml/badge.svg)](https://github.com/dwxlzy1963/FameTV/actions)
+[![Release](https://img.shields.io/github/v/release/dwxlzy1963/FameTV?color=orange)](https://github.com/dwxlzy1963/FameTV/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 把 `https://famelack.com/tv/` 打包成 Android TV 上一个原生 APK：
-- 启动器菜单展示 **169 个国家 / 6723+ 频道**（来自 famelack/famelack-data 仓库）
-- 双引擎播放：**ExoPlayer** 直播 m3u8（首选），失败自动回退 **WebView** 加载 famelack 页面
-- 全屏沉浸 + D-pad 遥控适配（中心键播放/暂停、上下键音量、左右键快进）
-- 收藏 / 历史（SharedPreferences 持久化）
-- 远程 JSON 拉取 + 本地缓存（24h TTL），断网兜底内置 `channels_default.json`
-- 在 APK 设置页可改远程 URL，无需重装即可换源
+
+- 📺 **6723+ 频道** 覆盖 169 个国家（来自 famelack/famelack-data 仓库）
+- 🎬 **双引擎播放**：ExoPlayer 直播 m3u8（首选），失败自动回退 WebView 加载 famelack 页面
+- 🎮 **D-pad 遥控全适配**：上下=切换频道、左右=音量、OK 短=播放/暂停、OK 长按 2s=收藏
+- 📂 **按国家折叠展开**：左侧 sidebar + 右侧频道列表，国家项可展开/折叠
+- ⭐ **收藏 / 历史**：SharedPreferences 持久化 + 震动反馈
+- 🌐 **中英文切换**：设置里一键切换 跟随系统 / English / 简体中文
+- 🔄 **远程 JSON 配置**：换源只需替换 URL，无需重装
+- 💾 **离线兜底**：24h TTL 缓存 + 内置 res/raw 兜底频道
+- 📡 **GitHub Pages 免费 CDN**：channels.json 部署到 GitHub Pages，零成本分发
+
+**最新版本**：[v1.2.0](https://github.com/dwxlzy1963/FameTV/releases/latest) — 中文/英文切换 + 收藏修复
 
 ---
 
-## 1. 项目结构
+## 1. 遥控器操作速查
+
+### 主界面
+
+| 按键 | 行为 |
+|------|------|
+| ↑ / ↓ | 焦点上下移动 |
+| OK 短按 | 频道项=打开播放；国家项=展开/折叠 |
+| **OK 长按 2s** | **收藏/取消收藏 ★（震动反馈）** |
+| 右键 长按 2s | 打开设置 |
+| 左键 长按 2s | 聚焦左侧 sidebar |
+| MENU 键 | 打开设置 |
+| Page Up/Down | 强制刷新频道列表 |
+
+### 播放器
+
+| 按键 | 行为 |
+|------|------|
+| ↑ / ↓ | 切换上一/下一频道 |
+| ← / → | 音量 减/加 |
+| OK 短按 | 播放 / 暂停 |
+| **OK 长按 2s** | **收藏当前频道（标题加 ★）** |
+| 右键 长按 2s | 打开设置 |
+| MENU 键 | 切换播放源（ExoPlayer / WebView / YouTube） |
+| 返回 | 退出 |
+
+---
+
+## 2. 项目结构
 
 ```
 FameTV/
@@ -24,6 +62,7 @@ FameTV/
     └── src/main/
         ├── AndroidManifest.xml               # 声明 Leanback 启动器
         ├── java/com/fametv/app/
+        │   ├── BaseActivity.java             # 语言 Locale 应用基类
         │   ├── MainActivity.java             # 频道列表 + 搜索 + 工具栏
         │   ├── PlayerActivity.java           # ExoPlayer + WebView 播放器
         │   ├── FavoritesActivity.java        # 收藏列表
