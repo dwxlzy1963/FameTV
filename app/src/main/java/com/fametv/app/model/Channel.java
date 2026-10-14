@@ -66,10 +66,18 @@ public class Channel {
     public boolean hasStream() { return streamUrl != null && !streamUrl.isEmpty(); }
     public boolean hasYoutube() { return youtubeUrl != null && !youtubeUrl.isEmpty(); }
 
-    /** Return a display string like "CNA  (Singapore · eng)". */
+    /**
+     * Return a display subtitle showing the channel's country name in
+     * bilingual (中文 + English) form, plus language code and geo-block flag.
+     * Example: "新加坡 Singapore · eng · GEO"
+     */
     public String getDisplaySubtitle() {
         StringBuilder sb = new StringBuilder();
-        if (countryName != null && !countryName.isEmpty()) {
+        // Prefer bilingual country name (中文 + English)
+        String bilingualCountry = com.fametv.app.util.CountryNames.bilingual(country, countryName);
+        if (bilingualCountry != null && !bilingualCountry.isEmpty()) {
+            sb.append(bilingualCountry);
+        } else if (countryName != null && !countryName.isEmpty()) {
             sb.append(countryName);
         } else if (country != null) {
             sb.append(country.toUpperCase());

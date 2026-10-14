@@ -173,11 +173,17 @@ public class MainActivity extends BaseActivity {
         Map<String, String> countryNames = new HashMap<>();
         for (Channel ch : allChannels) {
             if (ch == null || ch.getCountry() == null) continue;
-            if (!q.isEmpty()
-                    && (ch.getName() == null || !ch.getName().toLowerCase(Locale.ROOT).contains(q))
-                    && (ch.getCountryName() == null || !ch.getCountryName().toLowerCase(Locale.ROOT).contains(q))
-                    && !ch.getCountry().toLowerCase(Locale.ROOT).contains(q)) {
-                continue;
+            // Bilingual search: matches English name, country code, country English name,
+            // or Chinese country name (so typing "新加坡" finds Singapore's channels).
+            if (!q.isEmpty()) {
+                String name = ch.getName() == null ? "" : ch.getName().toLowerCase(Locale.ROOT);
+                String cName = ch.getCountryName() == null ? "" : ch.getCountryName().toLowerCase(Locale.ROOT);
+                String cCode = ch.getCountry() == null ? "" : ch.getCountry().toLowerCase(Locale.ROOT);
+                String zhName = com.fametv.app.util.CountryNames.chineseName(ch.getCountry());
+                String zhLower = zhName == null ? "" : zhName.toLowerCase(Locale.ROOT);
+                if (!name.contains(q) && !cName.contains(q) && !cCode.contains(q) && !zhLower.contains(q)) {
+                    continue;
+                }
             }
             String code = ch.getCountry();
             byCountry.computeIfAbsent(code, k -> new ArrayList<>()).add(ch);
@@ -191,14 +197,15 @@ public class MainActivity extends BaseActivity {
         // 2. If searching, auto-expand all matching countries
         boolean autoExpand = !q.isEmpty();
 
-        // 3. Build the flat list
+        // 3. Build the flat list — show bilingual country names in the header
         List<CountryGroupAdapter.FlatItem> flat = new ArrayList<>();
         for (Map.Entry<String, List<Channel>> entry : byCountry.entrySet()) {
             String code = entry.getKey();
             List<Channel> channels = entry.getValue();
-            String name = countryNames.getOrDefault(code, code.toUpperCase(Locale.ROOT));
+            String englishName = countryNames.getOrDefault(code, code.toUpperCase(Locale.ROOT));
+            String bilingualName = com.fametv.app.util.CountryNames.bilingual(code, englishName);
             boolean expanded = autoExpand || expandedByCountry.getOrDefault(code, false);
-            flat.add(CountryGroupAdapter.FlatItem.header(code, name, channels.size(), expanded));
+            flat.add(CountryGroupAdapter.FlatItem.header(code, bilingualName, channels.size(), expanded));
             if (expanded) {
                 for (Channel ch : channels) {
                     flat.add(CountryGroupAdapter.FlatItem.channel(ch));
