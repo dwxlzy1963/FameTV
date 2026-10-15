@@ -243,9 +243,19 @@ public class PlayerActivity extends BaseActivity {
             }
 
             @Override
+            public void onPageCommitVisible(WebView v, String url) {
+                // Called as soon as the first pixel is drawn — earlier than onPageFinished.
+                // Good time to start trying to autoplay before the SPA finishes loading.
+                injectPlayerTweaks(v);
+            }
+
+            @Override
             public void onPageFinished(WebView v, String url) {
                 progress.setVisibility(View.GONE);
                 injectPlayerTweaks(v);
+                // Inject again 1.5s later to catch SPA hydration
+                v.postDelayed(() -> injectPlayerTweaks(v), 1500);
+                v.postDelayed(() -> injectPlayerTweaks(v), 3500);
             }
         });
 
@@ -285,14 +295,103 @@ public class PlayerActivity extends BaseActivity {
     }
 
     private void injectPlayerTweaks(@NonNull WebView v) {
+        // Robust auto-play script:
+        //  1. Install a MutationObserver that watches for any <video> element being
+        //     inserted into the DOM (famelack is an SPA, video is added dynamically).
+        //  2. As soon as a <video> appears, force autoplay + playsinline + muted (so
+        //     browsers don't block autoplay), then try to enter fullscreen.
+        //  3. Click any "play button" overlay that may exist (many web players have
+        //     a big "▶ Click to Play" overlay that requires user gesture).
+        //  4. Strip nav/banner/ad elements so the video is the only thing visible.
+        //  5. Retry every 800ms for up to 15s in case the player mounts late.
         String js = "(function(){"
+                + "  if (window.__fametv_autoplay_installed) return;"
+                + "  window.__fametv_autoplay_installed = true;"
                 + "  try {"
-                + "    var v = document.querySelector('video');"
-                + "    if (v) { v.setAttribute('playsinline','true'); v.play && v.play(); }"
-                + "    var style = document.createElement('style');"
-                + "    style.innerHTML = 'body{background:#000!important;} header,nav,footer,[class*=ad-],[class*=banner]{display:none!important;}';"
-                + "    document.head.appendChild(style);"
+                + "    var css = document.createElement('style');"
+                + "    css.innerHTML = 'body{background:#000!important;} "
+                + "      header,nav,footer,[class*=ad-],[class*=banner],"
+                + "      [class*=overlay],[class*=promo]{display:none!important;}';"
+                + "    document.head.appendChild(css);"
                 + "  } catch(e) {}"
+                + "  function tryPlayVideo(video) {"
+                + "    if (!video) return false;"
+                + "    try {"
+                + "      video.setAttribute('playsinline','true');"
+                + "      video.setAttribute('webkit-playsinline','true');"
+                + "      video.setAttribute('autoplay','true');"
+                + "      video.setAttribute('preload','auto');"
+                + "      video.muted = true;"   // muted autoplay is always allowed
+                + "      var p = video.play();"
+                + "      if (p && p.then) {"
+                + "        p.then(function(){"
+                + "          // Once playing, unmute after 200ms (so audio starts)"
+                + "          setTimeout(function(){ try { video.muted = false; video.play(); } catch(e){} }, 200);"
+                + "        }).catch(function(e){"
+                + "          // Autoplay with sound blocked — keep muted and play"
+                + "          try { video.muted = true; video.play(); } catch(e2){}"
+                + "        });"
+                + "      }"
+                + "      // Try to enter fullscreen via the video element"
+                + "      try {"
+                + "        if (video.requestFullscreen) video.requestFullscreen();"
+                + "        else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();"
+                + "        else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();"
+                + "      } catch(e) {}"
+                + "      return true;"
+                + "    } catch(e) { return false; }"
+                + "  }"
+                + "  function clickPlayOverlay() {"
+                + "    // Click big obvious play buttons — many web players have one"
+                + "    var candidates = ["
+                + "      '.play-button', '.playButton', '[class*=play-btn]', '[class*=PlayButton]',"
+                + "      '.vjs-big-play-button', '.vjs-big-play-button-playing',"
+                + "      '[class*=overlay-button]', '[class*=OverlayPlay]',"
+                + "      'button[aria-label*=Play]', 'button[aria-label*=play]',"
+                + "      '.jw-icon-display', '.jw-reset.jw-button-color'"
+                + "    ];"
+                + "    candidates.forEach(function(sel){"
+                + "      var els = document.querySelectorAll(sel);"
+                + "      for (var i=0;i<els.length;i++){"
+                + "        try { els[i].click(); } catch(e){}"
+                + "      }"
+                + "    });"
+                + "  }"
+                + "  function scanAndPlay() {"
+                + "    var videos = document.querySelectorAll('video');"
+                + "    var played = false;"
+                + "    for (var i=0;i<videos.length;i++){"
+                + "      if (tryPlayVideo(videos[i])) played = true;"
+                + "    }"
+                + "    clickPlayOverlay();"
+                + "    return played;"
+                + "  }"
+                + "  // MutationObserver: fires whenever new nodes are added to the DOM"
+                + "  try {"
+                + "    var obs = new MutationObserver(function(mutations){"
+                + "      for (var i=0;i<mutations.length;i++){"
+                + "        var added = mutations[i].addedNodes;"
+                + "        for (var j=0;j<added.length;j++){"
+                + "          var n = added[j];"
+                + "          if (n && n.tagName === 'VIDEO') { tryPlayVideo(n); }"
+                + "          else if (n && n.querySelectorAll) {"
+                + "            var vids = n.querySelectorAll('video');"
+                + "            for (var k=0;k<vids.length;k++) tryPlayVideo(vids[k]);"
+                + "          }"
+                + "        }"
+                + "      }"
+                + "    });"
+                + "    obs.observe(document.documentElement || document.body, {childList:true, subtree:true});"
+                + "  } catch(e) {}"
+                + "  // Retry loop — many players mount late"
+                + "  var attempts = 0;"
+                + "  var interval = setInterval(function(){"
+                + "    attempts++;"
+                + "    var ok = scanAndPlay();"
+                + "    if (ok || attempts > 18) clearInterval(interval);"  // 18 * 800ms = ~15s
+                + "  }, 800);"
+                + "  // Initial pass"
+                + "  scanAndPlay();"
                 + "})();";
         v.evaluateJavascript(js, null);
     }
