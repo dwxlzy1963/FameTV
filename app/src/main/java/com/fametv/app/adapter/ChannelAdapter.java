@@ -12,13 +12,21 @@ import com.fametv.app.R;
 import com.fametv.app.model.Channel;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Grid adapter for the channel list. Designed for TV D-pad navigation:
- * each item is focusable and shows a clear focus ring.
+ * Channel adapter that supports two row layouts:
+ *  - LAYOUT_COMPACT:  one-line horizontal row (used in main country list)
+ *  - LAYOUT_FULL:    two-line row that wraps long channel names (Favorites/History)
+ *
+ * Designed for TV D-pad navigation — each item is focusable with a clear focus ring.
  */
 public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
+
+    public static final int LAYOUT_COMPACT = 0;
+    public static final int LAYOUT_FULL    = 1;
 
     public interface OnChannelClickListener {
         void onChannelClick(Channel channel);
@@ -32,14 +40,24 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     private final OnChannelClickListener clickListener;
     private final OnChannelLongClickListener longClickListener;
     private final boolean showFavoriteBadge;
-    private final java.util.Set<String> favoriteIds = new java.util.HashSet<>();
+    private final int layoutMode;
+    private final Set<String> favoriteIds = new HashSet<>();
 
+    /** Default constructor uses the compact layout (backward compatible). */
     public ChannelAdapter(@NonNull OnChannelClickListener clickListener,
                           OnChannelLongClickListener longClickListener,
                           boolean showFavoriteBadge) {
+        this(clickListener, longClickListener, showFavoriteBadge, LAYOUT_COMPACT);
+    }
+
+    public ChannelAdapter(@NonNull OnChannelClickListener clickListener,
+                          OnChannelLongClickListener longClickListener,
+                          boolean showFavoriteBadge,
+                          int layoutMode) {
         this.clickListener = clickListener;
         this.longClickListener = longClickListener;
         this.showFavoriteBadge = showFavoriteBadge;
+        this.layoutMode = layoutMode;
     }
 
     public void submitList(@NonNull List<Channel> list) {
@@ -48,7 +66,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         notifyDataSetChanged();
     }
 
-    public void setFavoriteIds(@NonNull java.util.Set<String> ids) {
+    public void setFavoriteIds(@NonNull Set<String> ids) {
         favoriteIds.clear();
         favoriteIds.addAll(ids);
         notifyDataSetChanged();
@@ -57,8 +75,8 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     @NonNull
     @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_channel, parent, false);
+        int res = layoutMode == LAYOUT_FULL ? R.layout.item_channel_full : R.layout.item_channel;
+        View v = LayoutInflater.from(parent.getContext()).inflate(res, parent, false);
         return new VH(v);
     }
 
