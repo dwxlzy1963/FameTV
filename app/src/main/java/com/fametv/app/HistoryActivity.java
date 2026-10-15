@@ -5,17 +5,20 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
-import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.fametv.app.adapter.ChannelAdapter;
 import com.fametv.app.model.Channel;
 import com.fametv.app.storage.Prefs;
-import com.fametv.app.ui.GridSpacingItemDecoration;
 import com.fametv.app.util.UiUtil;
 
 import java.util.List;
 
+/**
+ * History screen — uses a vertical list (not a grid) so that long channel
+ * names are fully visible.
+ */
 public class HistoryActivity extends BaseActivity {
 
     private RecyclerView recycler;
@@ -27,10 +30,19 @@ public class HistoryActivity extends BaseActivity {
         setContentView(R.layout.activity_simple_list);
         setTitle(R.string.history);
         recycler = findViewById(R.id.recycler);
-        int spanCount = 6;
-        recycler.setLayoutManager(new GridLayoutManager(this, spanCount));
-        recycler.addItemDecoration(new GridSpacingItemDecoration(spanCount, UiUtil.dpToPx(this, 10), true));
-        adapter = new ChannelAdapter(this::openChannel, this::onLongClick, false);
+
+        LinearLayoutManager lm = new LinearLayoutManager(this);
+        lm.setOrientation(RecyclerView.VERTICAL);
+        recycler.setLayoutManager(lm);
+        recycler.setHasFixedSize(true);
+        recycler.setPadding(
+                UiUtil.dpToPx(this, 16),
+                UiUtil.dpToPx(this, 12),
+                UiUtil.dpToPx(this, 16),
+                UiUtil.dpToPx(this, 24));
+        recycler.setClipToPadding(false);
+
+        adapter = new ChannelAdapter(this::openChannel, this::onLongClick, false, ChannelAdapter.LAYOUT_FULL);
         recycler.setAdapter(adapter);
     }
 
